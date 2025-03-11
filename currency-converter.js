@@ -1,32 +1,34 @@
-jQuery(document).ready(function ($) {
-
-    $('#convert-currency').on('click', function () {
+jQuery(document).ready(function($) {
+    $('#convert-currency').on('click', function() {
         var fromCurrency = $('#from-currency').val();
         var toCurrency = $('#to-currency').val();
+        var amount = $('#amount').val();
+
+        if (amount <= 0) {
+            alert("Please enter a valid amount.");
+            return;
+        }
 
         $.ajax({
-            type: 'POST',
             url: currencyConverter.ajax_url,
+            type: 'POST',
             data: {
                 action: 'currency_converter',
                 from_currency: fromCurrency,
-                to_currency: toCurrency
+                to_currency: toCurrency,
+                amount: amount
             },
-            beforeSend: function () {
-                $('#conversion-result').text('Fetching conversion rate...');
-            },
-            success: function (response) {
+            success: function(response) {
                 var data = JSON.parse(response);
-                if (data.rate) {
-                    $('#conversion-result').html('<strong>1 ' + fromCurrency + ' = ' + data.rate + ' ' + toCurrency + '</strong>');
+                if (data.error) {
+                    $('#conversion-result').html('<span class="error">' + data.error + '</span>');
                 } else {
-                    $('#conversion-result').text('Error fetching conversion rate.');
+                    $('#conversion-result').html(
+                        'Exchange Rate: 1 ' + fromCurrency + ' = ' + data.rate + ' ' + toCurrency + '<br>' +
+                        'Converted Amount: ' + amount + ' ' + fromCurrency + ' = ' + data.converted_value.toFixed(2) + ' ' + toCurrency
+                    );
                 }
-            },
-            error: function () {
-                $('#conversion-result').text('An error occurred. Please try again.');
             }
         });
     });
-
 });

@@ -1,72 +1,98 @@
 <?php
 /**
  * Plugin Name: Currency Converter
- * Description: A user-friendly plugin to check and convert currency values.
- * Version: 1.1
+ * Description: A simple currency converter using ExchangeRate-API.
+ * Version: 1.0
  * Author: Sujoy Sen
  */
 
-// Prevent direct access
 if (!defined('ABSPATH')) {
-    exit;
+    exit; // Exit if accessed directly
 }
 
-// Enqueue scripts and styles
-function currency_converter_enqueue_assets() {
-    wp_enqueue_style('currency-converter-css', plugin_dir_url(__FILE__) . 'currency-converter.css');
-    wp_enqueue_script('currency-converter-js', plugin_dir_url(__FILE__) . 'currency-converter.js', array('jquery'), null, true);
-    wp_localize_script('currency-converter-js', 'currencyConverter', array(
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'api_key' => '1432caa1e584519352ad4da2' // Replace with your API key
-    ));
-}
-add_action('wp_enqueue_scripts', 'currency_converter_enqueue_assets');
+// Function to get exchange rates
+function get_exchange_rate($from, $to)
+{
+    $api_key = '1432caa1e584519352ad4da2'; // Replace with your API key
+    $url = "https://v6.exchangerate-api.com/v6/$api_key/latest/$from";
+    
+    $response = wp_remote_get($url);
+    
+    if (is_wp_error($response)) {
+        return false;
+    }
 
-// Shortcode to display currency converter
-function currency_converter_display() {
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    return isset($data['conversion_rates'][$to]) ? $data['conversion_rates'][$to] : false;
+}
+
+// Function to display the converter form
+function currency_converter_form()
+{
+    $currencies = array(
+        "USD" => "United States Dollar",
+        "INR" => "Indian Rupee",
+        "EUR" => "Euro",
+        "GBP" => "British Pound",
+        "JPY" => "Japanese Yen",
+        "AUD" => "Australian Dollar",
+        "CAD" => "Canadian Dollar",
+        "CNY" => "Chinese Yuan",
+        "SGD" => "Singapore Dollar",
+        "AED" => "UAE Dirham",
+        "BRL" => "Brazilian Real",
+        "ZAR" => "South African Rand",
+        "MXN" => "Mexican Peso",
+        "THB" => "Thai Baht",
+        "CHF" => "Swiss Franc",
+        "MYR" => "Malaysian Ringgit",
+        "RUB" => "Russian Ruble",
+        "PKR" => "Pakistani Rupee",
+        "BDT" => "Bangladeshi Taka",
+        "NGN" => "Nigerian Naira",
+        "KRW" => "South Korean Won",
+        "VND" => "Vietnamese Dong"
+    );
+
     ob_start();
     ?>
-    <div id="currency-converter" class="currency-converter-container">
-        <h2>Currency Converter</h2>
-        <div class="converter-wrapper">
-            <label for="from-currency">From:</label>
-            <select id="from-currency" class="currency-select">
-                <option value="USD">USD - US Dollar</option>
-                <option value="EUR">EUR - Euro</option>
-                <option value="INR">INR - Indian Rupee</option>
-                <option value="GBP">GBP - British Pound</option>
-            </select>
-            <label for="to-currency">To:</label>
-            <select id="to-currency" class="currency-select">
-                <option value="USD">USD - US Dollar</option>
-                <option value="EUR">EUR - Euro</option>
-                <option value="INR">INR - Indian Rupee</option>
-                <option value="GBP">GBP - British Pound</option>
-            </select>
-            <button id="convert-currency" class="convert-button">Convert</button>
-        </div>
-        <p id="conversion-result" class="conversion-result"></p>
-    </div>
+    <form method="post">
+        <input type="number" name="amount" placeholder="Enter amount" required>
+        <select name="from_currency">
+            <?php foreach ($currencies as $code => $name) : ?>
+                <option value="<?php echo esc_attr($code); ?>"><?php echo esc_html($name . " (" . $code . ")"); ?></option>
+            <?php endforeach; ?>
+        </select>
+        to
+        <select name="to_currency">
+            <?php foreach ($currencies as $code => $name) : ?>
+                <option value="<?php echo esc_attr($code); ?>"><?php echo esc_html($name . " (" . $code . ")"); ?></option>
+            <?php endforeach; ?>
+        </select>
+        <button type="submit" name="convert">Convert</button>
+    </form>
     <?php
+
+    if (isset($_POST['convert'])) {
+        $amount = floatval($_POST['amount']);
+        $from_currency = sanitize_text_field($_POST['from_currency']);
+        $to_currency = sanitize_text_field($_POST['to_currency']);
+        
+        $rate = get_exchange_rate($from_currency, $to_currency);
+
+        if ($rate) {
+            $converted_amount = $amount * $rate;
+            echo "<p>$amount $from_currency = $converted_amount $to_currency</p>";
+            echo "<p>Current Rate: 1 $from_currency = $rate $to_currency</p>";
+        } else {
+            echo "<p>Exchange rate not available.</p>";
+        }
+    }
+
     return ob_get_clean();
 }
-add_shortcode('currency_converter', 'currency_converter_display');
 
-// Handle AJAX request
-function currency_converter_ajax_handler() {
-    $from_currency = sanitize_text_field($_POST['from_currency']);
-    $to_currency = sanitize_text_field($_POST['to_currency']);
-    $api_key = '1432caa1e584519352ad4da2'; // Replace with your API key
-
-    $response = wp_remote_get("https://v6.exchangerate-api.com/v6/$api_key/pair/$from_currency/$to_currency");
-
-    if (is_wp_error($response)) {
-        echo json_encode(array('error' => 'Unable to fetch data. Please try again later.'));
-    } else {
-        $data = json_decode(wp_remote_retrieve_body($response), true);
-        echo json_encode(array('rate' => $data['conversion_rate']));
-    }
-    wp_die();
-}
-add_action('wp_ajax_currency_converter', 'currency_converter_ajax_handler');
-add_action('wp_ajax_nopriv_currency_converter', 'currency_converter_ajax_handler');
+// Register shortcode
+add_shortcode('currency_converter', 'currency_converter_form');
